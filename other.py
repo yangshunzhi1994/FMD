@@ -6,6 +6,8 @@ import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
 import math
+import scipy
+from scipy.stats import norm
 
 def Fitnet(teacher, student):
 
@@ -372,14 +374,15 @@ class FAKD_DT(nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.loss = nn.L1Loss()
+        self.loss = nn.L1Loss().cuda()
+        self.CEloss = torch.nn.CrossEntropyLoss().cuda()
 
     def forward(self, tea_pred, stu_pred, label, NUM_CLASSES):
 
         TS_loss = self.loss(stu_pred, tea_pred)
-        label = torch.nn.functional.one_hot(label, NUM_CLASSES).float()
+#         label = torch.nn.functional.one_hot(label, NUM_CLASSES).float()
 
-        DS_loss = self.loss(stu_pred, label)
+        DS_loss = self.CEloss(stu_pred, label)
 
         loss = DS_loss + TS_loss
 
@@ -474,7 +477,7 @@ class VKD_OnlineTripletLoss(nn.Module):
                 identity_mask = torch.eye(feat.size(0)).byte()
                 identity_mask = identity_mask.cuda() if id.is_cuda else identity_mask
                 same_id_mask = torch.eq(id.unsqueeze(1), id.unsqueeze(0))
-                negative_mask = same_id_mask ^ 1
+                negative_mask = same_id_mask ^ torch.full((same_id_mask.shape[0],same_id_mask.shape[1]), 1, dtype=torch.bool).cuda()
                 positive_mask = same_id_mask ^ identity_mask.bool()
         elif mode == 'mask':
             if pos_mask is None or neg_mask is None:
@@ -538,12 +541,80 @@ class VKD_OnlineTripletLoss(nn.Module):
 
 
 
+class DirectCapsNet(nn.Module):
+    def __init__(self, in_dim=7,out_dim=7):
+        super(DirectCapsNet, self).__init__()
+        self.layer1 = nn.Linear(in_dim, out_dim)
+        self.layer2 = nn.Linear(out_dim, out_dim)
+        self.layer3 = nn.Linear(out_dim, out_dim)
+        self.MSE_crit = nn.MSELoss().cuda() 
+ 
+    def forward(self, out_t, out_s):
+        
+        out_s = self.layer1(out_s)
+        out_s = self.layer2(out_s)
+        out_s = self.layer3(out_s)
+        
+        reconstruction_loss = self.MSE_crit(out_t,out_s)
+        
+        return reconstruction_loss
+
+
+def get_margin_from_BN(mean, std):
+    margin = []
+    
+    s = std
+    m = mean
+    
+    s = abs(s.item())
+    m = m.item()
+    if norm.cdf(-m / s) > 0.001:
+        margin.append(- s * math.exp(- (m / s) ** 2 / 2) / math.sqrt(2 * math.pi) / norm.cdf(-m / s) + m)
+    else:
+        margin.append(-3 * s)
+
+    return torch.FloatTensor(margin).to(std.device)
+
+
+def distillation_loss(source, target, margin):
+    target = torch.max(target, margin)
+    loss = torch.nn.functional.mse_loss(source, target, reduction="none")
+    loss = loss * ((source > target) | (target > 0)).float()
+    return loss.sum()
 
 
 
+class overhaul(nn.Module):
+    def __init__(self, channel):
+        super(overhaul, self).__init__()
 
+        self.Conv = nn.Conv2d(channel, channel, kernel_size=1, stride=1, padding=0, bias=False)
+        self.norm = nn.BatchNorm2d(channel)
+        self.channel = channel
 
-
-
-
-
+    def forward(self, t_feats, s_feats):
+        
+        s_feats = self.Conv(s_feats)
+        s_feats = self.norm(s_feats)
+        
+        B, C, student_H, student_W = s_feats.shape
+        t_feats = torch.nn.functional.interpolate(t_feats, size=[student_H, student_W], mode='nearest', align_corners=None)
+        
+        for i in range(B):
+            for j in range(self.channel):
+                s_mean = s_feats[i][j].mean()
+                s_std = s_feats[i][j].std()
+                s = get_margin_from_BN(s_feats.mean(),s_feats.std()).expand(student_H, student_W).unsqueeze(0)
+                
+                if j == 0: 
+                    margin_s = s
+                else:
+                    margin_s = torch.cat((margin_s, s),0) 
+            
+            if i == 0:
+                margin = torch.unsqueeze(margin_s, 0)
+            else:
+                margin = torch.cat((margin, margin_s.unsqueeze(0)),0)       
+        loss_distill = distillation_loss(s_feats, t_feats, margin)
+        
+        return loss_distill
