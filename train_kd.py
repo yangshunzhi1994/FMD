@@ -9,6 +9,7 @@ import time
 import logging
 import argparse
 import numpy as np
+import itertools
 from itertools import chain
 
 import torch
@@ -135,7 +136,7 @@ else:
 	KD_T_crit = losses.KL_divergence(temperature = 20)
 
 # initialize optimizer
-optimizer = torch.optim.SGD(snet.parameters(), 
+optimizer = torch.optim.SGD(itertools.chain(snet.parameters(),decoder.parameters()), 
 	lr = args.lr, 
 	momentum = args.momentum, 
 	weight_decay = args.weight_decay,
