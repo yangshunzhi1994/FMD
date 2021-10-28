@@ -224,6 +224,17 @@ learning_rate_decay_rate = 0.9 # 0.9
 def train(epoch):
 	print('\nEpoch: %d' % epoch)
 	snet.train()
+	if args.model == 'VID': 
+		VID_NET1.train()
+		VID_NET2.train()
+	elif args.model == 'OFD':
+		OFD_NET1.train()
+		OFD_NET2.train()
+	elif args.model == 'AFD':
+		AFD_NET1.train()
+		AFD_NET2.train()
+	else:
+		pass
 	train_loss = 0
 	train_cls_loss = 0
 
@@ -533,6 +544,17 @@ def train(epoch):
 def test(epoch):
 	
 	snet.eval()
+	if args.model == 'VID': 
+		VID_NET1.eval()
+		VID_NET2.eval()
+	elif args.model == 'OFD':
+		OFD_NET1.eval()
+		OFD_NET2.eval()
+	elif args.model == 'AFD':
+		AFD_NET1.eval()
+		AFD_NET2.eval()
+	else:
+		pass
 	PrivateTest_loss = 0
 	t_prediction = 0
 	conf_mat = np.zeros((NUM_CLASSES, NUM_CLASSES))
