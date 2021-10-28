@@ -135,11 +135,9 @@ elif args.model == 'AFD':
 	AFD_NET2 = other.AFD(160,1.0).cuda()
 	optimizer = torch.optim.SGD(itertools.chain(snet.parameters(),AFD_NET1.parameters(),AFD_NET2.parameters()), \
 				    lr = args.lr, momentum = args.momentum, weight_decay = args.weight_decay, nesterov = True)
-optimizer = torch.optim.SGD(snet.parameters(), 
-	lr = args.lr, 
-	momentum = args.momentum, 
-	weight_decay = args.weight_decay,
-	nesterov = True)
+else:
+	optimizer = torch.optim.SGD(snet.parameters(),
+				    lr = args.lr, momentum = args.momentum, weight_decay = args.weight_decay, nesterov = True)
 
 # define transforms
 if args.augmentation:
