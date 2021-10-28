@@ -9,6 +9,7 @@ import time
 import logging
 import argparse
 import numpy as np
+import itertools
 from itertools import chain
 
 import torch
@@ -118,6 +119,22 @@ else:
 	KD_T_crit = losses.KL_divergence(temperature = args.T)
 
 # initialize optimizer
+
+if args.model == 'VID': 
+	VID_NET1 = other.VID(96,96).cuda()
+	VID_NET2 = other.VID(160,160).cuda()
+	optimizer = torch.optim.SGD(itertools.chain(snet.parameters(),VID_NET1.parameters(),VID_NET2.parameters()), \
+				    lr = args.lr, momentum = args.momentum, weight_decay = args.weight_decay, nesterov = True)
+elif args.model == 'OFD':
+	OFD_NET1 = other.OFD(96,96).cuda()
+	OFD_NET2 = other.OFD(160,160).cuda()
+	optimizer = torch.optim.SGD(itertools.chain(snet.parameters(),OFD_NET1.parameters(),OFD_NET2.parameters()), \
+				    lr = args.lr, momentum = args.momentum, weight_decay = args.weight_decay, nesterov = True)
+elif args.model == 'AFD':
+	AFD_NET1 = other.AFD(96,1.0).cuda()
+	AFD_NET2 = other.AFD(160,1.0).cuda()
+	optimizer = torch.optim.SGD(itertools.chain(snet.parameters(),AFD_NET1.parameters(),AFD_NET2.parameters()), \
+				    lr = args.lr, momentum = args.momentum, weight_decay = args.weight_decay, nesterov = True)
 optimizer = torch.optim.SGD(snet.parameters(), 
 	lr = args.lr, 
 	momentum = args.momentum, 
@@ -360,40 +377,40 @@ def train(epoch):
 		elif args.model == 'VID': # VID-I
 		#Variational Information Distillation for Knowledge Transfer
 			if args.stage == 'Block1':
-				VID1_loss = other.VID(96,96,96).cuda()(rb1_t, rb1_s)
+				VID1_loss = VID_NET1(rb1_t, rb1_s)
 				loss = args.alpha * cls_loss + args.beta * kd_loss + args.gamma * VID1_loss
 			elif args.stage == 'Block2':
-				VID2_loss = other.VID(160,160,160).cuda()(rb2_t, rb2_s)
+				VID2_loss = VID_NET2(rb2_t, rb2_s)
 				loss = args.alpha * cls_loss + args.beta * kd_loss + args.delta * VID2_loss
 			else:
-				VID1_loss = other.VID(96,96,96).cuda()(rb1_t, rb1_s)
-				VID2_loss = other.VID(160,160,160).cuda()(rb2_t, rb2_s)
+				VID1_loss = VID_NET1(rb1_t, rb1_s)
+				VID2_loss = VID_NET2(rb2_t, rb2_s)
 				loss = args.alpha * cls_loss + args.beta * kd_loss + args.gamma * VID1_loss + args.delta * VID2_loss
 
 		elif args.model == 'OFD': # OFD 
 		#A Comprehensive Overhaul of Feature Distillation
 			if args.stage == 'Block1':
-				OFD1_loss = other.OFD(96,96).cuda()(rb1_t, rb1_s)
+				OFD1_loss = OFD_NET1(rb1_t, rb1_s)
 				loss = args.alpha * cls_loss + args.beta * kd_loss + args.gamma * OFD1_loss
 			elif args.stage == 'Block2':
-				OFD2_loss = other.OFD(160,160).cuda()(rb2_t, rb2_s)
+				OFD2_loss = OFD_NET2(rb2_t, rb2_s)
 				loss = args.alpha * cls_loss + args.beta * kd_loss + args.delta * OFD2_loss
 			else:
-				OFD1_loss = other.OFD(96,96).cuda()(rb1_t, rb1_s)
-				OFD2_loss = other.OFD(160,160).cuda()(rb2_t, rb2_s)
+				OFD1_loss = OFD_NET1.cuda()(rb1_t, rb1_s)
+				OFD2_loss = OFD_NET2(rb2_t, rb2_s)
 				loss = args.alpha * cls_loss + args.beta * kd_loss + args.gamma * OFD1_loss + args.delta * OFD2_loss
 
 		elif args.model == 'AFDS': # 
 		#Pay Attention to Features, Transfer Learn Faster CNNs
 			if args.stage == 'Block1':
-				AFD1_loss = other.AFD(96,1.0).cuda()(rb1_t, rb1_s)
+				AFD1_loss = AFD_NET1(rb1_t, rb1_s)
 				loss = args.alpha * cls_loss + args.beta * kd_loss + args.gamma * AFD1_loss
 			elif args.stage == 'Block2':
-				AFD2_loss = other.AFD(160,1.0).cuda()(rb2_t, rb2_s)
+				AFD2_loss = AFD_NET2(rb2_t, rb2_s)
 				loss = args.alpha * cls_loss + args.beta * kd_loss + args.delta * AFD2_loss
 			else:
-				AFD1_loss = other.AFD(96,1.0).cuda()(rb1_t, rb1_s)
-				AFD2_loss = other.AFD(160,1.0).cuda()(rb2_t, rb2_s)
+				AFD1_loss = AFD_NET1(rb1_t, rb1_s)
+				AFD2_loss = AFD_NET2(rb2_t, rb2_s)
 				loss = args.alpha * cls_loss + args.beta * kd_loss + args.gamma * AFD1_loss + args.delta * AFD2_loss
 
 		elif args.model == 'FT': # 
