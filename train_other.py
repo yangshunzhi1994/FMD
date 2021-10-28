@@ -121,8 +121,8 @@ else:
 # initialize optimizer
 
 if args.model == 'VID': 
-	VID_NET1 = other.VID(96,96).cuda()
-	VID_NET2 = other.VID(160,160).cuda()
+	VID_NET1 = other.VID(96,96,96).cuda()
+	VID_NET2 = other.VID(160,160,160).cuda()
 	optimizer = torch.optim.SGD(itertools.chain(snet.parameters(),VID_NET1.parameters(),VID_NET2.parameters()), \
 				    lr = args.lr, momentum = args.momentum, weight_decay = args.weight_decay, nesterov = True)
 elif args.model == 'OFD':
