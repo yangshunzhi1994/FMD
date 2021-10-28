@@ -41,7 +41,7 @@ parser = argparse.ArgumentParser(description='train kd')
 parser.add_argument('--save_root', type=str, default='results/', help='models and logs are saved here')
 parser.add_argument('--t_model', type=str, default="Teacher", help='Teacher,Teacher1,Teacher3')
 parser.add_argument('--s_model', type=str, default="CNNRIS", help='name of student model')
-parser.add_argument('--distillation', type=str, default="DEAS", help='KD,DE,AS,DEAS,SSDEAS')
+parser.add_argument('--distillation', type=str, default="DE", help='KD,DE,AS,DEAS,SSDEAS')
 parser.add_argument('--data_name', type=str, default='RAF', help='ExpW,RAF,CK_Plus') 
 
 # training hyper parameters
@@ -227,6 +227,7 @@ learning_rate_decay_rate = 0.9 # 0.9
 def train(epoch):
 	print('\nEpoch: %d' % epoch)
 	snet.train()
+	decoder.train()
 	train_loss = 0
 	train_cls_loss = 0
 
@@ -340,6 +341,7 @@ def train(epoch):
 def test(epoch):
 	
 	snet.eval()
+	decoder.eval()
 	PrivateTest_loss = 0
 	t_prediction = 0
 	conf_mat = np.zeros((NUM_CLASSES, NUM_CLASSES))
@@ -405,6 +407,7 @@ for epoch in range(1, args.epochs+1):
 		state = {
 			'epoch': epoch,
 			'snet': snet.state_dict() if args.cuda else snet,
+			'decoder': decoder.state_dict() if args.cuda else decoder,
 			'test_acc': test_acc,
 			'test_mAP': test_mAP,
 			'test_F1': test_F1,
@@ -415,6 +418,5 @@ for epoch in range(1, args.epochs+1):
 print("best_PrivateTest_acc: %0.3f" % best_acc)
 print("best_PrivateTest_mAP: %0.3f" % best_mAP)
 print("best_PrivateTest_F1: %0.3f" % best_F1)
-
 
 
